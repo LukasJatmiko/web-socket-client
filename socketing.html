@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en-US">
+	<head>
+        <title>Socketing</title>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<script src="jquery.js"></script>
+		<script src="socket.io.js"></script>
+        <script src="bootstrap.js"></script>
+        <link rel="stylesheet" type="text/css" href="bootstrap.css">
+        <link rel="icon" type="image/png" href="favicon.png">
+        <style type="text/css">
+            .event-list {cursor:pointer;}
+            .string { color: green; }
+            .number { color: darkorange; }
+            .boolean { color: blue; }
+            .null { color: magenta; }
+            .key { color: red; }
+        </style>
+	</head>
+	<body>
+        <div class="col-md-12">
+            <div class="col-md-12">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <form class="form-inline">
+                                    <table class="table">
+                                        <thead></thead>
+                                        <tbody>
+                                            <tr>
+                                                <th><h4>Host</h4></th>
+                                                <th><h4> : </h4></th>
+                                                <td>
+                                                    <div class="form-group">
+                                                        <input style="width:400px;" type="text" name="host" class="input-sm form-control" id="host" placeholder="http://host:port?q=param">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th><h4>Listen to event(s)</h4></th>
+                                                <th><h4> : </h4></th>
+                                                <td>
+                                                    <div class="form-group">
+                                                        <input style="width:400px;" type="text" name="listen" class="input-sm form-control" id="listen" placeholder="Comma separated">
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th></th>
+                                                <th></th>
+                                                <td>
+                                                    <div class="form-group">
+                                                        <button class="btn btn-success btn-sm" id="connect">Connect</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th><h4>Emit To Event</h4></th>
+                                                <th><h4> : </h4></th>
+                                                <td>
+                                                    <input style="width:300px;" type="text" class="form-control input-sm" id="event-name" placeholder="Event Name"><br />
+                                                    <textarea style="width:500px;margin-top:5px;" name="data" id="data" class="input-sm form-control" placeholder='{param1: "param", param2:"param"}'></textarea><br />
+                                                    <input type="checkbox" id="stringify"> Stringify<br />
+                                                    <button class="btn btn-sm btn-warning" id="btn-emit">Emit</button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th></th>
+                                                <th></th>
+                                                <td>
+                                                    
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h4 class="h4">Response :</h4>
+                    </div>
+                    <div class="col-md-6 text-right">
+                        <h4 class="h4"><small><span id="statusLabel" class="label label-danger">Disconnected</span></small></h4>
+                    </div>
+                    <div class="col-md-12" id="content"></div>
+                </div>
+            </div>
+        </div>
+        <script>
+            var connect = function(){
+                console.log('connecting..');
+                socket = io.connect($("#host").val());
+                socket.isConnected = false;
+                socket.on('connect', function() {
+                    socket.isConnected = true;
+                    console.log('connect');
+                    $("#statusLabel").attr('class','label label-success');
+                    $("#statusLabel").text('Connected');
+                });
+                socket.on('error', function(data) {
+                    socket.isConnected = false;
+                    $("#statusLabel").attr('class','label label-danger');
+                    $("#statusLabel").text('Authentication error');
+                    console.log(data);
+                });
+                socket.on('disconnect', function() {
+                    socket.isConnected = false;
+                    $("#statusLabel").attr('class','label label-danger');
+                    $("#statusLabel").text('Disconnected');
+                });
+                var title = [];
+                var arrEvents = $("#listen").val().split(',');
+                for(var i = 0;i<arrEvents.length;i++){
+                    console.log('listening event : '+arrEvents[i]);
+                    socket.on(arrEvents[i],function(response){
+                        console.log('receiving broadcast '+response);
+                        $("#content").prepend(
+                            '<div class="panel panel-warning">'+
+                                '<div class="panel-heading">Receiving broadcast<span class="pull-right">'+Date()+'</span></div>'+
+                                '<div class="panel-body">'+
+                                    '<pre>'+
+                                        syntaxHighlight(JSON.stringify(response, undefined, 4))+
+                                    '</pre>'+
+                                '</div>'+
+                            '</div>'
+                        );
+                    });
+                }
+            };
+            var emit = function(){
+                if($("#stringify").is(":checked")){
+                    var emitData = JSON.stringify($("#data").val());
+                }else{
+                    var emitData = $("#data").val();
+                }
+                socket.emit($("#event-name").val(), emitData,function(res){
+                    console.log('emitting event '+$("#event-name").val()+'..');
+                    var randomid = Math.floor(Math.random() * 20);
+                    var response = JSON.stringify(res, undefined, 4);
+                    $("#content").prepend(
+                        '<div class="panel panel-info">'+
+                            '<div class="panel-heading">Response from : <b>'+$("#event-name").val()+'</b><span class="pull-right">'+Date()+'</span></div>'+
+                            '<div class="panel-body" id="'+randomid+'">'+
+                            '</div>'+
+                        '</div>'
+                    );
+                    $('#'+randomid).append(
+                        "<pre>"+
+                            syntaxHighlight(response)+
+                        "</pre>"
+                    );
+                });
+            }
+            $("#connect").on('click',function(evt){
+                evt.preventDefault();
+                connect();
+            });
+            $(".event-list").on('click', function(){
+                $("#event-name").data('event',$(this).data('event'));
+                $("#event-name").text($(this).text());
+            });
+            $("#btn-emit").on('click',function(evt){
+                evt.preventDefault();
+                emit();
+            });
+            (function(){
+            })();
+
+            /****** pretty printing JSON ***/
+            function syntaxHighlight(json) {
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    var cls = 'number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                        cls = 'key';
+                        } else {
+                        cls = 'string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
+            }
+        </script>
+	</body>
+</html>
